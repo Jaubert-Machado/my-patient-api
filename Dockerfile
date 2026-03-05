@@ -3,6 +3,7 @@ WORKDIR /app
 
 FROM base AS deps
 COPY package*.json ./
+COPY prisma ./prisma
 RUN npm ci
 
 FROM base AS builder
@@ -17,6 +18,7 @@ ENV NODE_ENV=production
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/prisma.config.ts ./
 COPY package*.json ./
 
 EXPOSE 3001
