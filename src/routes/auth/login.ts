@@ -19,14 +19,8 @@ export async function loginRoute(app: FastifyInstance) {
 
     const token = app.jwt.sign({ sub: user.id, email: user.email, role: user.role })
 
-    reply.setCookie('auth_token', token, {
-      httpOnly: true,
-      path: '/',
-      sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
-    })
-
     return reply.status(200).send({
+      token,
       user: {
         id: user.id,
         email: user.email,
