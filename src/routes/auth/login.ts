@@ -17,6 +17,10 @@ export async function loginRoute(app: FastifyInstance) {
       return reply.status(401).send({ message: 'Credenciais inválidas' })
     }
 
+    if (!user.approved) {
+      return reply.status(403).send({ message: 'Conta aguardando aprovação.' })
+    }
+
     const token = app.jwt.sign({ sub: user.id, email: user.email, role: user.role })
 
     return reply.status(200).send({
