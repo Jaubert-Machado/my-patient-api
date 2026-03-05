@@ -1,0 +1,32 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: my-patient-db
+    environment:
+      POSTGRES_USER: mypatient
+      POSTGRES_PASSWORD: mypatient
+      POSTGRES_DB: mypatient
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mypatient -d mypatient"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: .
+    container_name: my-patient-api
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://mypatient:mypatient@postgres:5432/mypatient?schema=public
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
