@@ -1,23 +1,39 @@
 import type { MessageParam } from '@anthropic-ai/sdk/resources/messages'
 import { anthropic } from '../lib/anthropic'
+import { prisma } from '../lib/prisma'
+import type { PatientFicha } from './case-generator'
 
-const SYSTEM_PROMPT = `Você é um sistema de laboratório clínico simulado para fins de treinamento médico.
+const BASE_PROMPT = `Você é um sistema de laboratório clínico simulado para fins de treinamento médico.
 
-Diretrizes:
-- Receba solicitações de exames e retorne resultados simulados coerentes com o caso clínico
-- Apresente resultados em formato estruturado com nome do exame, valor encontrado, valor de referência e interpretação
-- Os resultados devem ser compatíveis com o quadro clínico do paciente (possível síndrome coronariana aguda)
-- Se o exame solicitado não for relevante para o caso, retorne resultado normal
-- Seja objetivo e técnico, como um laudo laboratorial real
-- Não faça diagnósticos, apenas reporte os resultados
+Retorne APENAS uma lista de resultados, um por linha, usando exatamente este formato:
+- Nome do Exame: valor encontrado (referência: valor de referência)
 
-Caso clínico de referência: Paciente do sexo masculino, 52 anos, com dor precordial típica há 3 horas, hipertenso. Os exames devem refletir achados compatíveis com infarto agudo do miocárdio em evolução quando pertinentes (ex: troponina elevada, ECG com alterações, etc).`
+Regras:
+- Cada exame em uma linha separada, começando com "- "
+- Sem cabeçalhos, sem datas, sem comentários, sem diagnósticos
+- Os resultados devem ser coerentes com o quadro clínico do paciente descrito abaixo
+- Se o exame não for relevante, retorne resultado dentro da normalidade
+- Seja objetivo e técnico como um laudo real`
 
-export function createLabAgentStream(messages: MessageParam[]) {
+export async function getLabSystemPrompt(caseId: string, userId: string): Promise<string> {
+  const patientCase = await prisma.patientCase.findFirst({
+    where: { id: caseId, userId },
+    select: { ficha: true },
+  })
+
+  if (!patientCase) throw new Error('Caso clínico não encontrado')
+
+  const ficha = patientCase.ficha as unknown as PatientFicha
+  const context = `\n\nContexto do paciente:\nNome: ${ficha.nome}, ${ficha.idade} anos, ${ficha.profissao}\nQueixa: ${ficha.queixa_principal} (${ficha.tempo_sintomas})\n${ficha.contexto}`
+
+  return BASE_PROMPT + context
+}
+
+export function createLabAgentStream(messages: MessageParam[], systemPrompt: string) {
   return anthropic.messages.stream({
     model: 'claude-sonnet-4-6',
     max_tokens: 2048,
-    system: SYSTEM_PROMPT,
+    system: systemPrompt,
     messages,
   })
 }

@@ -3,7 +3,7 @@ import type { MessageParam } from '@anthropic-ai/sdk/resources/messages'
 import type { JwtPayload } from '../../types'
 import { generatePatientCase } from '../../agents/case-generator'
 import { createPatientAgentStream, getPatientSystemPrompt } from '../../agents/patient'
-import { createLabAgentStream } from '../../agents/lab'
+import { createLabAgentStream, getLabSystemPrompt } from '../../agents/lab'
 import { createEvaluatorAgentStream } from '../../agents/evaluator'
 
 interface PatientChatBody {
@@ -95,14 +95,25 @@ export async function agentRoutes(app: FastifyInstance) {
     await streamAgent(createPatientAgentStream(messages, systemPrompt), send, app, reply)
   })
 
-  app.post<{ Body: { messages: MessageParam[] } }>('/lab', async (request, reply) => {
+  app.post<{ Body: { caseId: string; messages: MessageParam[] } }>('/lab', async (request, reply) => {
     try {
       await request.jwtVerify()
     } catch {
       return reply.status(401).send({ message: 'Não autenticado' })
     }
+
+    const { sub: userId } = request.user as JwtPayload
+    const { caseId, messages } = request.body
+
+    let systemPrompt: string
+    try {
+      systemPrompt = await getLabSystemPrompt(caseId, userId)
+    } catch {
+      return reply.status(404).send({ message: 'Caso clínico não encontrado' })
+    }
+
     const send = setupSSE(reply, corsOrigin)
-    await streamAgent(createLabAgentStream(request.body.messages), send, app, reply)
+    await streamAgent(createLabAgentStream(messages, systemPrompt), send, app, reply)
   })
 
   app.post<{ Body: EvaluateBody }>('/evaluate', async (request, reply) => {
