@@ -1,12 +1,14 @@
 import type { FastifyInstance, FastifyReply } from 'fastify'
 import type { MessageParam } from '@anthropic-ai/sdk/resources/messages'
-import { createPatientAgentStream, generatePatientCase } from '../../agents/patient'
+import type { JwtPayload } from '../../types'
+import { generatePatientCase } from '../../agents/case-generator'
+import { createPatientAgentStream, getPatientSystemPrompt } from '../../agents/patient'
 import { createLabAgentStream } from '../../agents/lab'
 import { createEvaluatorAgentStream } from '../../agents/evaluator'
 
-interface ChatBody {
+interface PatientChatBody {
+  caseId: string
   messages: MessageParam[]
-  systemPrompt?: string
 }
 
 interface EvaluateBody {
@@ -61,8 +63,10 @@ export async function agentRoutes(app: FastifyInstance) {
       return reply.status(401).send({ message: 'Não autenticado' })
     }
 
+    const { sub: userId } = request.user as JwtPayload
+
     try {
-      const result = await generatePatientCase()
+      const result = await generatePatientCase(userId)
       return reply.send(result)
     } catch (err) {
       app.log.error(err, 'patient init error')
@@ -70,21 +74,28 @@ export async function agentRoutes(app: FastifyInstance) {
     }
   })
 
-  app.post<{ Body: ChatBody }>('/patient', async (request, reply) => {
+  app.post<{ Body: PatientChatBody }>('/patient', async (request, reply) => {
     try {
       await request.jwtVerify()
     } catch {
       return reply.status(401).send({ message: 'Não autenticado' })
     }
-    const { messages, systemPrompt } = request.body
-    if (!systemPrompt) {
-      return reply.status(400).send({ message: 'systemPrompt é obrigatório' })
+
+    const { sub: userId } = request.user as JwtPayload
+    const { caseId, messages } = request.body
+
+    let systemPrompt: string
+    try {
+      systemPrompt = await getPatientSystemPrompt(caseId, userId)
+    } catch {
+      return reply.status(404).send({ message: 'Caso clínico não encontrado' })
     }
+
     const send = setupSSE(reply, corsOrigin)
     await streamAgent(createPatientAgentStream(messages, systemPrompt), send, app, reply)
   })
 
-  app.post<{ Body: ChatBody }>('/lab', async (request, reply) => {
+  app.post<{ Body: { messages: MessageParam[] } }>('/lab', async (request, reply) => {
     try {
       await request.jwtVerify()
     } catch {
