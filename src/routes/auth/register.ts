@@ -19,11 +19,12 @@ export async function registerRoute(app: FastifyInstance) {
 
     const token = app.jwt.sign({ sub: user.id, email: user.email, role: user.role })
 
+    const isProduction = process.env.NODE_ENV === 'production'
     reply.setCookie('auth_token', token, {
       httpOnly: true,
       path: '/',
-      sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
+      sameSite: isProduction ? 'none' : 'lax',
+      secure: isProduction,
     })
 
     return reply.status(201).send({
