@@ -4,6 +4,7 @@ import type { JwtPayload } from '../../types'
 import { generatePatientCase } from '../../agents/case-generator'
 import { createPatientAgentStream, getPatientSystemPrompt } from '../../agents/patient'
 import { createLabAgentStream, getLabSystemPrompt } from '../../agents/lab'
+import { createPhysicalAgentStream, getPhysicalSystemPrompt } from '../../agents/physical'
 import { createEvaluatorAgentStream } from '../../agents/evaluator'
 
 interface PatientChatBody {
@@ -114,6 +115,27 @@ export async function agentRoutes(app: FastifyInstance) {
 
     const send = setupSSE(reply, corsOrigin)
     await streamAgent(createLabAgentStream(messages, systemPrompt), send, app, reply)
+  })
+
+  app.post<{ Body: { caseId: string; messages: MessageParam[] } }>('/physical', async (request, reply) => {
+    try {
+      await request.jwtVerify()
+    } catch {
+      return reply.status(401).send({ message: 'Não autenticado' })
+    }
+
+    const { sub: userId } = request.user as JwtPayload
+    const { caseId, messages } = request.body
+
+    let systemPrompt: string
+    try {
+      systemPrompt = await getPhysicalSystemPrompt(caseId, userId)
+    } catch {
+      return reply.status(404).send({ message: 'Caso clínico não encontrado' })
+    }
+
+    const send = setupSSE(reply, corsOrigin)
+    await streamAgent(createPhysicalAgentStream(messages, systemPrompt), send, app, reply)
   })
 
   app.post<{ Body: EvaluateBody }>('/evaluate', async (request, reply) => {

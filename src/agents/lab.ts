@@ -9,11 +9,14 @@ Retorne APENAS uma lista de resultados, um por linha, usando exatamente este for
 - Nome do Exame: valor encontrado (referência: valor de referência)
 
 Regras:
-- Cada exame em uma linha separada, começando com "- "
+- Nunca retorne resultados alterados que não reflitam o caso proposto
+- Caso o exame solicitado seja físico (ausculta, palpação, percussão, inspeção etc.), retorne apenas: "Exame físico não é realizado por este sistema"
+- O paciente deve ser biologicamente capaz de realizar o exame solicitado (ex: mulher não realiza espermograma)
+- Cada resultado em uma linha separada, começando com "- "
 - Sem cabeçalhos, sem datas, sem comentários, sem diagnósticos
 - Os resultados devem ser coerentes com o quadro clínico do paciente descrito abaixo
-- Se o exame não for relevante, retorne resultado dentro da normalidade
-- Seja objetivo e técnico como um laudo real`
+- Se o exame não for relevante para o caso, retorne resultado dentro da normalidade
+- Seja objetivo e técnico como um laudo laboratorial real`
 
 export async function getLabSystemPrompt(caseId: string, userId: string): Promise<string> {
   const patientCase = await prisma.patientCase.findFirst({
@@ -32,7 +35,7 @@ export async function getLabSystemPrompt(caseId: string, userId: string): Promis
 export function createLabAgentStream(messages: MessageParam[], systemPrompt: string) {
   return anthropic.messages.stream({
     model: 'claude-sonnet-4-6',
-    max_tokens: 2048,
+    max_tokens: 600,
     system: systemPrompt,
     messages,
   })
