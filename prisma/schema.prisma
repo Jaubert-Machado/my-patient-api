@@ -12,6 +12,11 @@ enum UserRole {
   USER
 }
 
+enum CaseStatus {
+  IN_PROGRESS
+  COMPLETED
+}
+
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
@@ -28,11 +33,17 @@ model User {
 }
 
 model PatientCase {
-  id        String   @id @default(cuid())
-  userId    String
-  ficha     Json
-  persona   String
-  createdAt DateTime @default(now())
+  id               String     @id @default(cuid())
+  userId           String
+  ficha            Json
+  persona          String
+  status           CaseStatus @default(IN_PROGRESS)
+  patientMessages  Json       @default("[]")
+  labMessages      Json       @default("[]")
+  physicalMessages Json       @default("[]")
+  evaluation       Json?
+  completedAt      DateTime?
+  createdAt        DateTime   @default(now())
 
   user User @relation(fields: [userId], references: [id])
 

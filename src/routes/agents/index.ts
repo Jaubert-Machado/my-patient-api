@@ -6,6 +6,7 @@ import { createPatientAgentStream, getPatientSystemPrompt } from '../../agents/p
 import { createLabAgentStream, getLabSystemPrompt } from '../../agents/lab'
 import { createPhysicalAgentStream, getPhysicalSystemPrompt } from '../../agents/physical'
 import { createEvaluatorAgentStream } from '../../agents/evaluator'
+import { prisma } from '../../lib/prisma'
 
 interface PatientChatBody {
   caseId: string
@@ -36,10 +37,12 @@ async function streamAgent(
   send: (data: object) => void,
   app: FastifyInstance,
   reply: FastifyReply,
-) {
+): Promise<string> {
+  let fullText = ''
   try {
     for await (const event of stream) {
       if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+        fullText += event.delta.text
         send({ type: 'text', text: event.delta.text })
       }
       if (event.type === 'message_stop') {
@@ -52,6 +55,7 @@ async function streamAgent(
   } finally {
     reply.raw.end()
   }
+  return fullText
 }
 
 export async function agentRoutes(app: FastifyInstance) {
@@ -67,8 +71,22 @@ export async function agentRoutes(app: FastifyInstance) {
     const { sub: userId } = request.user as JwtPayload
 
     try {
+      const existing = await prisma.patientCase.findFirst({
+        where: { userId, status: 'IN_PROGRESS' },
+        orderBy: { createdAt: 'desc' },
+      })
+
+      if (existing) {
+        return reply.send({
+          caseId: existing.id,
+          ficha: existing.ficha,
+          patientMessages: existing.patientMessages,
+          isResuming: true,
+        })
+      }
+
       const result = await generatePatientCase(userId)
-      return reply.send(result)
+      return reply.send({ ...result, patientMessages: [], isResuming: false })
     } catch (err) {
       app.log.error(err, 'patient init error')
       return reply.status(500).send({ message: 'Falha ao gerar caso clínico' })
@@ -93,7 +111,17 @@ export async function agentRoutes(app: FastifyInstance) {
     }
 
     const send = setupSSE(reply, corsOrigin)
-    await streamAgent(createPatientAgentStream(messages, systemPrompt), send, app, reply)
+    const assistantText = await streamAgent(createPatientAgentStream(messages, systemPrompt), send, app, reply)
+
+    try {
+      const fullMessages = [...messages, { role: 'assistant', content: assistantText }]
+      await prisma.patientCase.updateMany({
+        where: { id: caseId, userId },
+        data: { patientMessages: fullMessages as object[] },
+      })
+    } catch (err) {
+      app.log.error(err, 'patient messages save error')
+    }
   })
 
   app.post<{ Body: { caseId: string; messages: MessageParam[] } }>('/lab', async (request, reply) => {
@@ -115,6 +143,15 @@ export async function agentRoutes(app: FastifyInstance) {
 
     const send = setupSSE(reply, corsOrigin)
     await streamAgent(createLabAgentStream(messages, systemPrompt), send, app, reply)
+
+    try {
+      await prisma.patientCase.updateMany({
+        where: { id: caseId, userId },
+        data: { labMessages: messages as object[] },
+      })
+    } catch (err) {
+      app.log.error(err, 'lab messages save error')
+    }
   })
 
   app.post<{ Body: { caseId: string; messages: MessageParam[] } }>('/physical', async (request, reply) => {
@@ -136,6 +173,15 @@ export async function agentRoutes(app: FastifyInstance) {
 
     const send = setupSSE(reply, corsOrigin)
     await streamAgent(createPhysicalAgentStream(messages, systemPrompt), send, app, reply)
+
+    try {
+      await prisma.patientCase.updateMany({
+        where: { id: caseId, userId },
+        data: { physicalMessages: messages as object[] },
+      })
+    } catch (err) {
+      app.log.error(err, 'physical messages save error')
+    }
   })
 
   app.post<{ Body: EvaluateBody }>('/evaluate', async (request, reply) => {
