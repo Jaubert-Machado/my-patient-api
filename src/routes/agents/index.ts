@@ -81,6 +81,8 @@ export async function agentRoutes(app: FastifyInstance) {
           caseId: existing.id,
           ficha: existing.ficha,
           patientMessages: existing.patientMessages,
+          labMessages: existing.labMessages,
+          physicalMessages: existing.physicalMessages,
           isResuming: true,
         })
       }
@@ -142,12 +144,13 @@ export async function agentRoutes(app: FastifyInstance) {
     }
 
     const send = setupSSE(reply, corsOrigin)
-    await streamAgent(createLabAgentStream(messages, systemPrompt), send, app, reply)
+    const assistantText = await streamAgent(createLabAgentStream(messages, systemPrompt), send, app, reply)
 
     try {
+      const fullMessages = [...messages, { role: 'assistant', content: assistantText }]
       await prisma.patientCase.updateMany({
         where: { id: caseId, userId },
-        data: { labMessages: messages as object[] },
+        data: { labMessages: fullMessages as object[] },
       })
     } catch (err) {
       app.log.error(err, 'lab messages save error')
@@ -172,12 +175,13 @@ export async function agentRoutes(app: FastifyInstance) {
     }
 
     const send = setupSSE(reply, corsOrigin)
-    await streamAgent(createPhysicalAgentStream(messages, systemPrompt), send, app, reply)
+    const assistantText = await streamAgent(createPhysicalAgentStream(messages, systemPrompt), send, app, reply)
 
     try {
+      const fullMessages = [...messages, { role: 'assistant', content: assistantText }]
       await prisma.patientCase.updateMany({
         where: { id: caseId, userId },
-        data: { physicalMessages: messages as object[] },
+        data: { physicalMessages: fullMessages as object[] },
       })
     } catch (err) {
       app.log.error(err, 'physical messages save error')
