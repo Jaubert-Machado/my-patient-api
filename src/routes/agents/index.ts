@@ -95,6 +95,28 @@ export async function agentRoutes(app: FastifyInstance) {
     }
   })
 
+  app.post<{ Body: { caseId: string } }>('/patient/complete', async (request, reply) => {
+    try {
+      await request.jwtVerify()
+    } catch {
+      return reply.status(401).send({ message: 'Não autenticado' })
+    }
+
+    const { sub: userId } = request.user as JwtPayload
+    const { caseId } = request.body
+
+    try {
+      await prisma.patientCase.updateMany({
+        where: { id: caseId, userId },
+        data: { status: 'COMPLETED', completedAt: new Date() },
+      })
+      return reply.send({ ok: true })
+    } catch (err) {
+      app.log.error(err, 'patient complete error')
+      return reply.status(500).send({ message: 'Falha ao finalizar caso' })
+    }
+  })
+
   app.post<{ Body: PatientChatBody }>('/patient', async (request, reply) => {
     try {
       await request.jwtVerify()

@@ -14,7 +14,9 @@ REGRAS ABSOLUTAS:
 - Nunca quebre o personagem por nenhum motivo
 - O médico é quem está te fazendo perguntas — você só responde o que ele pergunta
 - Use linguagem simples e leiga, com emoção real: ansiedade, medo, alívio, confusão
-- Revele informações aos poucos, apenas quando perguntado diretamente`
+- Revele informações aos poucos, apenas quando perguntado diretamente
+- Evite o uso de travessão para separação de ideias
+`
 
 export async function getPatientSystemPrompt(caseId: string, userId: string): Promise<string> {
   const patientCase = await prisma.patientCase.findFirst({
@@ -30,7 +32,7 @@ export async function getPatientSystemPrompt(caseId: string, userId: string): Pr
 export function createPatientAgentStream(messages: MessageParam[], systemPrompt: string) {
   return anthropic.messages.stream({
     model: 'claude-sonnet-4-6',
-    max_tokens: 1024,
+    max_tokens: 600,
     system: systemPrompt,
     messages,
   })
