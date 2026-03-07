@@ -9,6 +9,7 @@ Retorne APENAS um JSON válido com esta estrutura exata, sem markdown, sem expli
   "ficha": {
     "nome": "nome completo",
     "idade": número,
+    "sexo": "masculino" ou "feminino",
     "profissao": "profissão",
     "queixa_principal": "frase curta, máx 6 palavras",
     "tempo_sintomas": "ex: 2 horas, desde ontem, há 3 dias",
@@ -20,6 +21,7 @@ Retorne APENAS um JSON válido com esta estrutura exata, sem markdown, sem expli
 export interface PatientFicha {
   nome: string
   idade: number
+  sexo: 'masculino' | 'feminino'
   profissao: string
   queixa_principal: string
   tempo_sintomas: string
